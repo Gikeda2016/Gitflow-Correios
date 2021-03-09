@@ -57,8 +57,6 @@ def typewriter(palavra, tempo = 0.1, cor = default_, pulalinha=True):
         pulalinha  : True ->pula linha e False -> não pula linha
     '''
     linha = '\n' if pulalinha else ''
-
-
     print(cor, end='')
     for letra in palavra:
         print(letra, end='')
@@ -77,6 +75,7 @@ def DB_ativo():
     except Error as erro:
         # print(f' Banco de dados com falha: {erro.msg}')
         return False, erro.msg
+
 
 def Executa_SQL(pSQL, isList=False):
     ''' Executa comandos SQL se islist = True , pSQL contém uma lista de comandos SQL'''
@@ -200,6 +199,7 @@ def Gera_status(mens):
 
     elif msg_recebido in mens:      ## recebido no correio - pais de origem
         status = mens.replace(msg_recebido,'')
+        local = 'CURITIBA / PR'
 
     elif msg_transito in mens:      ## em trânsito
         status = msg_transito
@@ -287,15 +287,17 @@ def Correios_Rastreio (rastreios):
 
 
 def Update_Status(compras):
-    ''' Atualiza tabela compras com informações de sobre o ultimo status do produto '''
+    ''' Atualiza tabela compras com informações de sobre o ultimo status do produto.
+        :Gera uma lista de Update(pSQL) em compras para ser executada
+    '''
     pSQL = list()
     for item in compras: # Atualiza compras com informações de status, local 
-
-
+                        
         sql = "update compras set statuscp='{0}', datast='{1}', hora='{2}', local='{3}' \
           where id='{4}'".format( item['status'], convfdate(item['data']) ,
            item['hora'], item['local'], item['id'])         
         pSQL.append(sql)
+
     Executa_SQL(pSQL, True)  ## Atualiza a tabela compras com status e local
     print('\nConexão ao MySQL encerrada - Update_Status SQL.........', agora()) 
     
