@@ -628,6 +628,7 @@ def main():
         print(f'\n {green_}... Comunique ao Administrador sobre esta falha, obrigado.{default_}')
         print('¨'*70)
         print()
+        sleep(15)
 
 main()
 
