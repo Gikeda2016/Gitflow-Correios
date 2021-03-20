@@ -104,6 +104,7 @@ def Busca_SQL(pSQL):
         cursor.execute(pSQL)
         linhas = list()
         linhas = cursor.fetchall()
+
         cursor.close()
         conn.close()
         # print('\nConexão ao MySQL encerrada - Busca SQL.........', agora()) 
@@ -127,12 +128,15 @@ def Existe(campo , valor):
         return False
 
 
-def Le_Arquivo_compras(bln_print):
+def Le_Arquivo_compras(bln_print = False, finaliza = False):
     ''' Acessa BD correios e lê tabela compras: registra as compras e códigos de rastreio '''
-    pSQL = 'select id,nome,produto, codigocp, statuscp, local from compras'
-    
+
+    campos = 'id,nome,produto, codigocp, statuscp, local, finalizado, comentario' ## não pode alterar a ordem
+    pSQL = f'Select {campos} from compras where finalizado is {finaliza} order by id'
+
     linhas = list()
     linhas = Busca_SQL(pSQL)
+
     rastreios = list()
     for item in linhas:
         rast = dict()
@@ -171,6 +175,7 @@ def Limpa_mens(mens):
             'Importações',
             'Consulte os prazos clicando aqui.'
             ]
+
     for msg in msgs:  ## limpa mens, deixando o essencial
         if msg in mens:
             mens = mens.replace(msg,'')   
@@ -239,13 +244,12 @@ def Correios_Rastreio (rastreios):
     msg_entregue = 'Objeto entregue ao destinatário'
     msg_fim = '===>>>> E N T R E G U E <<<<==='
     # print()
-
     compras = list()
     relatorio = list()
+
     for item in rastreios:
         rast = dict()
         infos = correios(item['codigo'])  ## chamada da api correios, devolve 
-
         tag_fim = aviso = status = data = local = ''
         i = 0
         for info in infos:
@@ -306,7 +310,8 @@ def Upload_Rastreio(infos):
     try:
         conn = mysql.connect(host='localhost', database = 'correios', user ='root', password='')
         cursor = conn.cursor()
-        pSQL ='Truncate table rastreios'
+        # pSQL ='Truncate table rastreios'   ## apaga todos os dados s
+        pSQL = f'delete from rastreios where finalizado is False' ## apaga dados que estão ativos
         cursor.execute(pSQL)
         conn.commit()
 
@@ -331,11 +336,11 @@ strdate(info['data']), info['hora'], info['local'], info['mensagem'])
             print('\nConexão ao MySQL encerrada - Update_Rastreio SQL.........', agora())    
 
 
-def Print_Rastreios(nlin=100):
+def Print_Rastreios(nlin=100, finaliza = False):
     ''' Consulta tabela rastreios '''
     ''' campos : idprod, nome, produto, codigo, data, hora, local, mens'''
  
-    pSQL ='Select * from rastreios order by idrst'
+    pSQL =f'Select * from rastreios where finalizado is {finaliza} order by idrst'
     rastreios = Busca_SQL(pSQL)
     id = 0
     print()
@@ -361,14 +366,16 @@ def Print_Rastreios(nlin=100):
     print('-'*120)
 
 
-def Print_Status():
+def Print_Status(finaliza = False):
     ''' Consulta tabela compras '''
-    ''' campos : id, nome, produto, datacp, codigocp, statuscp, datast, hora, local, comentario'''
+    ''' campos : id, nome, produto, datacp, codigocp, statuscp, datast, hora, local, finalizado, comentario'''
     '''           0   1      2        3        4          5       6       7     8       9  '''
-    pSQL ='Select * from compras order by id'
+    pSQL =f'Select * from compras where finalizado is {finaliza} order by id'
     compras = Busca_SQL(pSQL)
+
     print()
     print()
+
     print(f' # Status de rastreio dos Correios # {green_}{agora()}{default_} ')
     for linha in compras:
         print('_'*130)
@@ -377,11 +384,11 @@ def Print_Status():
     print('_'*130)
 
 
-def atualiza_correios():
+def atualiza_correios(finaliza = False):
     compras = list()
     infos = list()
     rastreios = list()  ## dados sobre compras - produto codigo
-    rastreios = Le_Arquivo_compras(False)  # false não imprime entrada - entrada no banco de dados correios
+    rastreios = Le_Arquivo_compras(finaliza = finaliza)  # false não imprime entrada - entrada no banco de dados correios
     compras, infos = Correios_Rastreio (rastreios)  ## rastreia produtos no correiso rastreio e imprime a pesquisa e gera saída para gravar tabela rastreio
     Update_Status(compras)
     print(f'{green_}... atualizando status (compras) ...{default_}')
@@ -397,6 +404,7 @@ def Editar_Compras():
     print(f' {yellow_}(1):{default_} Inserir dados ')
     print(f' {yellow_}(2):{default_} Alterar dados ')
     print(f' {yellow_}(3):{default_} Deletar compras ')
+    print(f' {yellow_}(4):{default_} Finalizar rastreio (ocultar)')
     print('¨'*40) 
 
     while True:   
@@ -413,6 +421,9 @@ def Editar_Compras():
             break
         elif escolha == 3: ## Deletar compras 
             Deleta_Compras()
+            break
+        elif escolha == 4: ## Deletar compras 
+            Finalizar_Compras()
             break
         elif escolha == 99:
             break
@@ -552,10 +563,43 @@ def Deleta_Compras():  ## escolha == 3
         if str(input(' ... Quer deletar mais algum? [S/N]: ')) in 'nN':
             break    
 
+def Finalizar_Compras():  ## escolha == 3
+    ''' Finalizar Tabela compras e Rastreios  Seta campo finalizado = True'''
+    Print_Status()
+    print()
+    print(' ...  Finalizando itens de Compras ...')
+    print('¨'*40) 
+    while True:
+        lista_id = Load_id_Compras()
+        sleep(2)
+        num = int(input(f' ... Qual quer finalizar {lista_id} ou [999-sair] '))
+        if num == 99:
+            break  
+        else:           
+            if num in lista_id:
+                Print_id_Compras(num)
+                sleep(1)
+                if str(input(' Vai mesmo finalizar esta compra? [S/N]}: ')) in 'sS':
 
-def Load_id_Compras():
+                    pSQL = f"Update compras set finalizado = True where id='{num}'"
+                    Executa_SQL(pSQL)
+                    pSQL2= f"Update rastreios set finalizado = True where idprod='{num}'"
+                    Executa_SQL(pSQL2)                  
+                    print(f'     ... Finalizado Compras e Rastreios id={num} ... ')     
+                      
+                sleep(3) 
+                Print_Status()
+            else:
+                print(f' ... Escolha uma compra válida: {lista_id}') 
+        print()
+                
+        if str(input(' ... Quer finalizar mais algum? [S/N]: ')) in 'nN':
+            break
+
+
+def Load_id_Compras(finalizado = False):
     ''' Carrega os id's das compras '''
-    pSQL = 'select id from compras order by id'
+    pSQL = 'select id from compras where finalizado is {finalizado} order by id '
     linhas = Busca_SQL(pSQL)
     lt_id = list()
     for linha in linhas:
@@ -585,17 +629,21 @@ def main():
             # print('_'*40)
             print()
             print(f'{green_} Programa de Rastreio - Correios / BR {default_}')
-            print('¨'*40)
+            print('¨'*55)
             print(f' {yellow_} (1):{default_} Atualizar agora o rastreamento ')
-            print(f' {yellow_} (2):{default_} Mostrar informação detalhada ')
-            print(f' {yellow_} (3):{default_} Mostrar informação resumida ')
+            print(f' {yellow_} (2):{default_} Rastreio ativo -> passo a passo ')
+            print(f' {yellow_} (3):{default_} Rastreio ativo -> resumido ')
             print(f' {yellow_} (4):{default_} Editar dados de compras ')
-            print('¨'*40)
+            print(f' {yellow_} (5):{default_} Rastreio concluído -> resumido ')
+            print(f' {yellow_} (6):{default_} Rastreio concluído -> passo a passo ')
+            print(f' {yellow_} (7):{default_} Atualização total de rastreamento ')
+            print('¨'*55)
             print(f'  Escolha uma opção? [{yellow_}99-sair{default_}]: ', end='') 
             escolha = str(input(''))
             if escolha.isnumeric():
                 escolha  = int(escolha)
             print()
+
             if escolha == 1:
                 atualiza_correios()
             elif escolha == 2:
@@ -606,6 +654,15 @@ def main():
                 sleep(2)
             elif escolha == 4:
                 Editar_Compras()
+            elif escolha == 5:
+                Print_Status(True)   # Compras Finalizadas
+                sleep(2)
+            elif escolha == 6:
+                Print_Rastreios(finaliza = True)   # Compras Finalizadas
+                sleep(2)
+            elif escolha == 7:
+                atualiza_correios(finaliza = True)   # Compras Finalizadas
+                sleep(2)
             elif escolha == 99:
                 break
             else:
