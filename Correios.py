@@ -133,7 +133,6 @@ def Le_Arquivo_compras(bln_print = False, finaliza = False):
 
     campos = 'id,nome,produto, codigocp, statuscp, local, finalizado, comentario' ## não pode alterar a ordem
     pSQL = f'Select {campos} from compras where finalizado is {finaliza} order by id'
-
     linhas = list()
     linhas = Busca_SQL(pSQL)
 
@@ -173,7 +172,8 @@ def Limpa_mens(mens):
             'País em Unidade de Tratamento Internacional /',
             'Unidade de Tratamento Internacional',
             'Importações',
-            'Consulte os prazos clicando aqui.'
+            'Consulte os prazos clicando aqui.',
+            'Unidade de Logística Integrada em'
             ]
 
     for msg in msgs:  ## limpa mens, deixando o essencial
@@ -304,36 +304,58 @@ def Update_Status(compras):
 
     Executa_SQL(pSQL, True)  ## Atualiza a tabela compras com status e local
     print('\nConexão ao MySQL encerrada - Update_Status SQL.........', agora()) 
-    
-def Upload_Rastreio(infos):
+
+
+def Upload_Rastreio(infos, finalizado = False):
     ''' Executa comandos SQL se islist = True , pSQL contém uma lista de comandos SQL'''
-    try:
-        conn = mysql.connect(host='localhost', database = 'correios', user ='root', password='')
-        cursor = conn.cursor()
-        # pSQL ='Truncate table rastreios'   ## apaga todos os dados s
-        pSQL = 'delete from rastreios where finalizado is False' ## apaga dados que estão ativos
-        cursor.execute(pSQL)
-        conn.commit()
 
-        for info in infos:
-            pSQL = "insert into rastreios \
+    pSQL = f'delete from rastreios where finalizado is {finalizado}' ## apaga dados que estão ativos
+    Executa_SQL(pSQL)
+
+    pSQLs = list()
+    for info in infos:
+        pSQL = f"insert into rastreios \
 (idprod, nome, produto, codigo, data, hora, local, mens) values\
-('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}')".format(\
-info['idprod'], info['nome'], info['produto'], info['codigo'],\
-strdate(info['data']), info['hora'], info['local'], info['mensagem']) 
+('{info['idprod']}','{info['nome']}','{info['produto']}','{info['codigo']}',\
+'{strdate(info['data'])}','{info['hora']}','{info['local']}','{info['mensagem']}')"
+        pSQLs.append(pSQL)
 
-            cursor.execute(pSQL)    
+    Executa_SQL(pSQLs, True)   
+    print('\nConexão ao MySQL encerrada - Update_Rastreio SQL.........', agora())
 
-    except Error as e:
-        print('Erro ao acessar tabela rastreios: ', e)
 
-    finally:
-       if conn.is_connected():
+
+
+
+# def Upload_Rastreio(infos):
+#     ''' Executa comandos SQL se islist = True , pSQL contém uma lista de comandos SQL'''.
+#     try:
+#         conn = mysql.connect(host='localhost', database = 'correios', user ='root', password='')
+#         cursor = conn.cursor()
+#         # pSQL ='Truncate table rastreios'   ## apaga todos os dados s
+#         pSQL = 'delete from rastreios where finalizado is False' ## apaga dados que estão ativos
+#         cursor.execute(pSQL)
+#         conn.commit()
+
+#         for info in infos:
+#             pSQL = "insert into rastreios \
+# (idprod, nome, produto, codigo, data, hora, local, mens) values\
+# ('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}')".format(\
+# info['idprod'], info['nome'], info['produto'], info['codigo'],\
+# strdate(info['data']), info['hora'], info['local'], info['mensagem']) 
+
+#             cursor.execute(pSQL)    
+
+#     except Error as e:
+#         print('Erro ao acessar tabela rastreios: ', e)
+
+#     finally:
+#        if conn.is_connected():
             
-            conn.commit()
-            cursor.close()
-            conn.close()
-            print('\nConexão ao MySQL encerrada - Update_Rastreio SQL.........', agora())    
+#             conn.commit()
+#             cursor.close()
+#             conn.close()
+#             print('\nConexão ao MySQL encerrada - Update_Rastreio SQL.........', agora())    
 
 
 def Print_Rastreios(nlin=100, finaliza = False):
@@ -392,7 +414,10 @@ def atualiza_correios(finaliza = False):
     compras, infos = Correios_Rastreio (rastreios)  ## rastreia produtos no correiso rastreio e imprime a pesquisa e gera saída para gravar tabela rastreio
     Update_Status(compras)
     print(f'{green_}... atualizando status (compras) ...{default_}')
-    Upload_Rastreio(infos)
+    Upload_Rastreio(infos, finaliza)
+
+    Marca_rastreio()  ## marca os finalizados no rastreio
+
     print(f'{green_}... atualizando (rastreios) ...{default_}')
     sleep(3)
 
@@ -610,8 +635,28 @@ def Finalizar_Compras(finalizar = True):  ## escolha == 3
                 print(f' ... Escolha uma compra válida: {lista_id}') 
         print()
                 
-        if str(input(f' ... Quer {mens} mais algum? [S/N]: ')) in 'nN':
+        if str(input(f' ... Quer {mens} mais algum? [S/N]: ')) in 'nN': 
             break
+
+def Marca_rastreio(finalizado = True):
+    ''' Elimina duplicados e marca ativo ou finalizado rastreio '''
+    lista = Load_id_Compras(finalizado)  ## lista de id compras ativas (finalizado = False)
+    
+    # elimina duplicados
+    # pSQL = f'delete rst from rastreios as rst, rastreios as rst2 where rst.idrst < rst2.idrst and rst.data = rst2.data and rst.hora = rst2.hora'
+    # Executa_SQL(pSQL)
+
+    # marcar rastreios com finalizado  = { True or False}
+    pSQLs = list()
+    for item in lista:
+        pSQL = f'update rastreios set finalizado = {finalizado} where idprod = {item}'
+        pSQLs.append(pSQL)
+    Executa_SQL(pSQLs, True)
+
+    print( f' Marcou {green_}{"Finalizados" if not finalizado else "Ativos"} {default_}')
+
+
+
 
 
 def Load_id_Compras(finalizado = False):
