@@ -311,7 +311,7 @@ def Upload_Rastreio(infos):
         conn = mysql.connect(host='localhost', database = 'correios', user ='root', password='')
         cursor = conn.cursor()
         # pSQL ='Truncate table rastreios'   ## apaga todos os dados s
-        pSQL = f'delete from rastreios where finalizado is False' ## apaga dados que estão ativos
+        pSQL = 'delete from rastreios where finalizado is False' ## apaga dados que estão ativos
         cursor.execute(pSQL)
         conn.commit()
 
@@ -405,6 +405,7 @@ def Editar_Compras():
     print(f' {yellow_}(2):{default_} Alterar dados ')
     print(f' {yellow_}(3):{default_} Deletar compras ')
     print(f' {yellow_}(4):{default_} Finalizar rastreio (ocultar)')
+    print(f' {yellow_}(5):{default_} Ativar rastreio (visível)')
     print('¨'*40) 
 
     while True:   
@@ -422,8 +423,11 @@ def Editar_Compras():
         elif escolha == 3: ## Deletar compras 
             Deleta_Compras()
             break
-        elif escolha == 4: ## Deletar compras 
-            Finalizar_Compras()
+        elif escolha == 4: ## Encerrar rastreamento e ocultar compras 
+            Finalizar_Compras(True)
+            break
+        elif escolha == 5: ## Tornar visível compras 
+            Finalizar_Compras(False)
             break
         elif escolha == 99:
             break
@@ -448,14 +452,14 @@ def Insere_Compras():
         while True:
             codigo = str(input(' Código de Rastreio: '))
             if not Existe('codigocp', codigo):
+                print(codigo)
                 break
             else:
                 print(" Código já cadastrado, outro!! ")
     
         if len(produto) > 0:
-            pSQL = f"insert into compras \
-(nome, produto, datacp, codigocp, statuscp, datast, hora, local, comentario) values \
-('{nome}', '{produto}', '{data}', '{codigo}', '{''}', '{''}', '{''}', '{''}', '{''}')"            
+            pSQL = f"insert into compras (nome, produto, datacp, codigocp) values \
+('{nome}', '{produto}', '{data}', '{codigo}')"            
             Executa_SQL(pSQL)
             print( '     ... Inserido uma nova compra ...')
             print()
@@ -543,14 +547,15 @@ def Deleta_Compras():  ## escolha == 3
     while True:
         lista_id = Load_id_Compras()
         sleep(2)
-        num = int(input(f' ... Qual quer deletar {lista_id} ou [999-sair] '))
+        num = int(input(f' ... Qual quer deletar {lista_id} ou [999-sair]: '))
         if num == 99:
             break  
         else:           
             if num in lista_id:
                 Print_id_Compras(num)
                 sleep(1)
-                if str(input(' Vai mesmo apagar esta compra? [S/N]}: ')) in 'sS':
+                mens = f' Vai mesmo apagar esta compra? [{green_}S/N{default_}]: '
+                if str(input(mens)) in 'sS':
                     pSQL = f"Delete from compras where id='{num}'"
                     Executa_SQL(pSQL)
                     print(f'     ... Deletado id={num} ... ')        
@@ -563,47 +568,61 @@ def Deleta_Compras():  ## escolha == 3
         if str(input(' ... Quer deletar mais algum? [S/N]: ')) in 'nN':
             break    
 
-def Finalizar_Compras():  ## escolha == 3
-    ''' Finalizar Tabela compras e Rastreios  Seta campo finalizado = True'''
-    Print_Status()
+def Finalizar_Compras(finalizar = True):  ## escolha == 3
+    ''' Finalizar / Ativar Tabela compras e Rastreios  Seta campo finalizado = True'''
+    finalizado = not finalizar ## não finalizado ainda, então quer finalizado
+    Print_Status(finalizado)
+    mens = 'Finalizar' ## está ativo
+    if not finalizar:
+        mens = 'Ativar'  ## está finalizado
+
     print()
-    print(' ...  Finalizando itens de Compras ...')
+    print(f' ...  {mens} itens de Compras ...')
     print('¨'*40) 
     while True:
-        lista_id = Load_id_Compras()
+        lista_id = Load_id_Compras(not finalizar)
         sleep(2)
-        num = int(input(f' ... Qual quer finalizar {lista_id} ou [999-sair] '))
-        if num == 99:
+
+        if len(lista_id) == 0:
+            print(f' ..... Não há compras para {green_}{mens}. .....{default_} ')
+            break
+        else:
+            print( f' ... Qual quer {mens} {green_}{lista_id} ou [99-sair]{default_}: ', end ='')
+            num = int(input( ))
+
+        if num == 99 :
             break  
         else:           
             if num in lista_id:
                 Print_id_Compras(num)
                 sleep(1)
-                if str(input(' Vai mesmo finalizar esta compra? [S/N]}: ')) in 'sS':
+                if str(input(f' Vai mesmo {mens} esta compra? [S/N]: ')) in 'sS':
 
-                    pSQL = f"Update compras set finalizado = True where id='{num}'"
+                    pSQL = f"Update compras set finalizado = {finalizar} where id='{num}'"
                     Executa_SQL(pSQL)
-                    pSQL2= f"Update rastreios set finalizado = True where idprod='{num}'"
+                    pSQL2= f"Update rastreios set finalizado = {finalizar} where idprod='{num}'"
                     Executa_SQL(pSQL2)                  
-                    print(f'     ... Finalizado Compras e Rastreios id={num} ... ')     
+                    print(f'     ... {mens} concluído em Compras e Rastreios id={num} ... ')      
                       
                 sleep(3) 
-                Print_Status()
+                Print_Status(finalizado)
             else:
                 print(f' ... Escolha uma compra válida: {lista_id}') 
         print()
                 
-        if str(input(' ... Quer finalizar mais algum? [S/N]: ')) in 'nN':
+        if str(input(f' ... Quer {mens} mais algum? [S/N]: ')) in 'nN':
             break
 
 
 def Load_id_Compras(finalizado = False):
     ''' Carrega os id's das compras '''
-    pSQL = 'select id from compras where finalizado is {finalizado} order by id '
+    pSQL = f'select id from compras where finalizado is {finalizado} order by id '
     linhas = Busca_SQL(pSQL)
+
     lt_id = list()
     for linha in linhas:
         lt_id.append(linha[0])
+
     return lt_id
 
 
@@ -621,7 +640,7 @@ def Print_id_Compras(num):
 
 def main():
 
-    myDB_ativo, mens_erro = DB_ativo()   ## verifica-se o DB Mysql está acessível
+    myDB_ativo, mens_erro = DB_ativo()   ## verifica-se o DB Mysql Correios está acessível
 
     if myDB_ativo is True:
         while True:
@@ -636,7 +655,7 @@ def main():
             print(f' {yellow_} (4):{default_} Editar dados de compras ')
             print(f' {yellow_} (5):{default_} Rastreio concluído -> resumido ')
             print(f' {yellow_} (6):{default_} Rastreio concluído -> passo a passo ')
-            print(f' {yellow_} (7):{default_} Atualização total de rastreamento ')
+            print(f' {yellow_} (51):{default_} Atualização total de rastreamento ')
             print('¨'*55)
             print(f'  Escolha uma opção? [{yellow_}99-sair{default_}]: ', end='') 
             escolha = str(input(''))
@@ -660,7 +679,7 @@ def main():
             elif escolha == 6:
                 Print_Rastreios(finaliza = True)   # Compras Finalizadas
                 sleep(2)
-            elif escolha == 7:
+            elif escolha == 51:
                 atualiza_correios(finaliza = True)   # Compras Finalizadas
                 sleep(2)
             elif escolha == 99:
